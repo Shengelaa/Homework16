@@ -23,19 +23,29 @@ router.get("/", async (req: Request, res: Response) => {
     const page = parseInt(req.query.page as string) || 1;
     const skip = (page - 1) * limit;
 
-    const search = req.query.search as string | undefined;
+    const search = req.query.search as string;
+    const category = req.query.category as string;
+    const priceSort = req.query.price as "asc" | "desc";
 
-    let filter = {};
+    const filter: any = {};
     if (search) {
-      filter = {
-        $or: [
-          { name: { $regex: search, $options: "i" } },
-          { description: { $regex: search, $options: "i" } },
-        ],
-      };
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+      ];
+    }
+    if (category) {
+      filter.category = category;
     }
 
-    const products = await Product.find(filter).skip(skip).limit(limit);
+    const sort: any = {};
+    if (priceSort === "asc") sort.price = 1;
+    if (priceSort === "desc") sort.price = -1;
+
+    const products = await Product.find(filter)
+      .sort(sort)
+      .skip(skip)
+      .limit(limit);
 
     res.status(200).json(products);
   } catch (err) {
