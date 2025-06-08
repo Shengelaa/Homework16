@@ -10,13 +10,33 @@ import {
 } from "../services/productService";
 import { isAdmin } from "../middlewares/authMiddleware";
 import { productValidationSchema } from "../validations/productValidation";
+import Product from "../models/productModel";
 
 const router = Router();
 const upload = multer({ dest: "uploads/" });
 
 router.get("/", async (req: Request, res: Response) => {
   try {
-    const products = await getAllProducts();
+    let limit = parseInt(req.query.limit as string) || 10;
+    if (limit > 30) limit = 30;
+
+    const page = parseInt(req.query.page as string) || 1;
+    const skip = (page - 1) * limit;
+
+    const search = req.query.search as string | undefined;
+
+    let filter = {};
+    if (search) {
+      filter = {
+        $or: [
+          { name: { $regex: search, $options: "i" } },
+          { description: { $regex: search, $options: "i" } },
+        ],
+      };
+    }
+
+    const products = await Product.find(filter).skip(skip).limit(limit);
+
     res.status(200).json(products);
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch products", error: err });
@@ -65,6 +85,33 @@ router.post(
     }
   }
 );
+
+router.post("/:id/review", async (req: Request, res: Response) => {
+  try {
+    const productId = req.params.id;
+    const comment = req.headers["comment"] as string;
+
+    if (!productId || !comment) {
+      return res
+        .status(400)
+        .json({ message: "Product ID and comment are required" });
+    }
+
+    const updatedProduct = await Product.findByIdAndUpdate(
+      productId,
+      { $push: { review: comment } },
+      { new: true }
+    );
+
+    if (!updatedProduct) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    res.status(200).json(updatedProduct);
+  } catch (err) {
+    res.status(500).json({ message: "Failed to add comment", error: err });
+  }
+});
 
 router.put(
   "/:id",
